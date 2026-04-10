@@ -25,6 +25,11 @@ function getClaudeHistoryPath() {
   return path.join(homeDir, '.claude', 'projects');
 }
 
+function getCodexHistoryPath() {
+  const homeDir = os.homedir();
+  return path.join(homeDir, '.codex', 'sessions');
+}
+
 function findJsonlFiles(dir, files = []) {
   if (!fs.existsSync(dir)) return files;
 
@@ -146,6 +151,122 @@ ipcMain.handle('get-conversation-details', async (event, filePath) => {
 
 ipcMain.handle('get-history-path', async () => {
   return getClaudeHistoryPath();
+});
+
+// Codex functions
+function findCodexJsonlFiles(dir, files = []) {
+  if (!fs.existsSync(dir)) return files;
+
+  const items = fs.readdirSync(dir, { withFileTypes: true });
+  for (const item of items) {
+    const fullPath = path.join(dir, item.name);
+    if (item.isDirectory()) {
+      findCodexJsonlFiles(fullPath, files);
+    } else if (item.name.startsWith('rollout-') && item.name.endsWith('.jsonl')) {
+      files.push(fullPath);
+    }
+  }
+  return files;
+}
+
+function parseCodexJsonlFile(filePath) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const lines = content.trim().split('\n').filter(line => line.trim());
+    const messages = [];
+
+    for (const line of lines) {
+      try {
+        const parsed = JSON.parse(line);
+        // Include session_meta, and response_item messages
+        if (parsed.type === 'session_meta' || parsed.type === 'response_item') {
+          messages.push(parsed);
+        }
+      } catch (e) {
+        // Skip invalid JSON lines
+      }
+    }
+
+    return messages;
+  } catch (e) {
+    return [];
+  }
+}
+
+function getCodexSessionSummary(messages) {
+  // Find first user message
+  for (const msg of messages) {
+    if (msg.type === 'response_item' && msg.payload?.role === 'user') {
+      const content = msg.payload.content;
+      if (Array.isArray(content)) {
+        for (const item of content) {
+          if (item.type === 'input_text' && item.text) {
+            const cleaned = item.text.replace(/\s+/g, ' ').trim();
+            return cleaned.substring(0, 100) + (cleaned.length > 100 ? '...' : '');
+          }
+        }
+      }
+    }
+  }
+  return 'No summary available';
+}
+
+function getCodexSessionMeta(messages) {
+  for (const msg of messages) {
+    if (msg.type === 'session_meta') {
+      return msg.payload || {};
+    }
+  }
+  return {};
+}
+
+ipcMain.handle('get-codex-sessions', async () => {
+  const historyPath = getCodexHistoryPath();
+  const jsonlFiles = findCodexJsonlFiles(historyPath);
+
+  const sessions = [];
+
+  for (const filePath of jsonlFiles) {
+    const messages = parseCodexJsonlFile(filePath);
+    if (messages.length > 0) {
+      const meta = getCodexSessionMeta(messages);
+      const userMessages = messages.filter(m => m.type === 'response_item' && m.payload?.role === 'user').length;
+      const assistantMessages = messages.filter(m => m.type === 'response_item' && m.payload?.role === 'assistant').length;
+
+      // Extract timestamp from filename: rollout-2026-04-09T10-01-44-...
+      const fileName = path.basename(filePath);
+      const timeMatch = fileName.match(/rollout-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})/);
+      const timestamp = timeMatch ? timeMatch[1].replace(/-/g, (m, i) => i > 9 ? ':' : '-').replace('T', 'T') : null;
+
+      sessions.push({
+        id: filePath,
+        path: filePath,
+        project: meta.cwd || 'Unknown Project',
+        model: meta.model_provider || 'openai',
+        cliVersion: meta.cli_version || '',
+        summary: getCodexSessionSummary(messages),
+        timestamp: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString(),
+        messageCount: messages.length,
+        userCount: userMessages,
+        assistantCount: assistantMessages,
+        isCodex: true
+      });
+    }
+  }
+
+  // Sort by timestamp descending
+  sessions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  return sessions;
+});
+
+ipcMain.handle('get-codex-session-details', async (event, filePath) => {
+  const messages = parseCodexJsonlFile(filePath);
+  // Filter to only user and assistant messages for display
+  return messages.filter(m =>
+    m.type === 'response_item' &&
+    (m.payload?.role === 'user' || m.payload?.role === 'assistant')
+  );
 });
 
 function getBackupPath() {

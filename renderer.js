@@ -1,15 +1,18 @@
 let conversations = [];
+let codexSessions = [];
 let backups = [];
 let currentConversationId = null;
 let currentMessages = [];
 let currentFilter = 'all';
 let currentSearchQuery = '';
 let isBackupSelected = false;
+let isCodexSelected = false;
 let currentTab = 'sessions';
 
 document.addEventListener('DOMContentLoaded', async () => {
   await loadHistoryPath();
   await loadConversations();
+  await loadCodexSessions();
   await loadBackups();
   setupEventListeners();
 });
@@ -34,6 +37,173 @@ async function loadConversations() {
     console.error('Failed to load conversations:', error);
     listElement.innerHTML = '<div class="no-conversations">Failed to load conversations</div>';
   }
+}
+
+async function loadCodexSessions() {
+  const listElement = document.getElementById('codexList');
+  if (listElement) {
+    listElement.innerHTML = '<div class="loading">Loading Codex sessions...</div>';
+  }
+
+  try {
+    codexSessions = await window.api.getCodexSessions();
+    renderCodexList(codexSessions);
+  } catch (error) {
+    console.error('Failed to load Codex sessions:', error);
+    if (listElement) {
+      listElement.innerHTML = '<div class="no-conversations">Failed to load Codex sessions</div>';
+    }
+  }
+}
+
+function renderCodexList(items) {
+  const listElement = document.getElementById('codexList');
+  if (!listElement) return;
+
+  if (items.length === 0) {
+    listElement.innerHTML = '<div class="no-conversations">No Codex sessions found</div>';
+    return;
+  }
+
+  listElement.innerHTML = items.map(session => `
+    <div class="conversation-item codex-item ${session.id === currentConversationId ? 'active' : ''}"
+         data-id="${escapeHtml(session.id)}">
+      <div class="project-name codex">${escapeHtml(session.project)}</div>
+      <div class="summary">${escapeHtml(session.summary)}</div>
+      <div class="meta">
+        <span class="timestamp">${formatDate(session.timestamp)}</span>
+        <span class="message-badge codex">${session.userCount} / ${session.assistantCount}</span>
+      </div>
+    </div>
+  `).join('');
+
+  listElement.querySelectorAll('.conversation-item').forEach(item => {
+    item.addEventListener('click', () => {
+      selectCodexSession(item.dataset.id);
+    });
+  });
+}
+
+async function selectCodexSession(id) {
+  currentConversationId = id;
+  currentFilter = 'all';
+  currentSearchQuery = '';
+  isBackupSelected = false;
+  isCodexSelected = true;
+
+  // Reset filter buttons
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === 'all');
+  });
+
+  // Clear search
+  const messageSearchInput = document.getElementById('messageSearchInput');
+  if (messageSearchInput) {
+    messageSearchInput.value = '';
+  }
+
+  // Update active states
+  document.querySelectorAll('.conversation-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.id === id);
+  });
+  document.querySelectorAll('.backup-item').forEach(item => {
+    item.classList.remove('active');
+  });
+
+  document.getElementById('welcomeMessage').style.display = 'none';
+  document.getElementById('conversationView').style.display = 'flex';
+
+  const messagesContainer = document.getElementById('messagesContainer');
+  messagesContainer.innerHTML = '<div class="loading">Loading Codex session...</div>';
+
+  try {
+    const messages = await window.api.getCodexSessionDetails(id);
+    currentMessages = messages;
+    renderCodexMessages(messages);
+
+    const session = codexSessions.find(s => s.id === id);
+    if (session) {
+      document.getElementById('conversationTitle').textContent = `[Codex] ${session.project}`;
+      updateMessageCount();
+    }
+  } catch (error) {
+    console.error('Failed to load Codex session:', error);
+    messagesContainer.innerHTML = '<div class="no-conversations">Failed to load session</div>';
+  }
+}
+
+function renderCodexMessages(messages) {
+  const container = document.getElementById('messagesContainer');
+
+  const renderedMessages = messages.map((msg, index) => {
+    const role = msg.payload?.role;
+    const timestamp = msg.timestamp ? formatDateTime(msg.timestamp) : '';
+
+    if (role === 'user') {
+      return renderCodexUserMessage(msg, timestamp, index);
+    } else if (role === 'assistant') {
+      return renderCodexAssistantMessage(msg, timestamp, index);
+    }
+    return '';
+  }).filter(Boolean).join('');
+
+  container.innerHTML = renderedMessages || '<div class="no-conversations">No messages in this session</div>';
+  container.scrollTop = 0;
+}
+
+function renderCodexUserMessage(msg, timestamp, index) {
+  const content = extractCodexUserContent(msg);
+  return `
+    <div class="message user" data-index="${index}">
+      <div class="message-header">
+        <span class="message-role">User</span>
+        ${timestamp ? `<span class="message-timestamp">${timestamp}</span>` : ''}
+      </div>
+      <div class="message-content">${formatTextContent(content)}</div>
+    </div>
+  `;
+}
+
+function renderCodexAssistantMessage(msg, timestamp, index) {
+  const content = extractCodexAssistantContent(msg);
+  return `
+    <div class="message assistant codex" data-index="${index}">
+      <div class="message-header">
+        <span class="message-role">Codex</span>
+        <span class="model-badge">GPT</span>
+        ${timestamp ? `<span class="message-timestamp">${timestamp}</span>` : ''}
+      </div>
+      <div class="message-content">${formatTextContent(content)}</div>
+    </div>
+  `;
+}
+
+function extractCodexUserContent(msg) {
+  const content = msg.payload?.content;
+  if (!content) return '';
+
+  if (Array.isArray(content)) {
+    return content
+      .filter(item => item.type === 'input_text')
+      .map(item => item.text)
+      .join('\n');
+  }
+
+  return String(content);
+}
+
+function extractCodexAssistantContent(msg) {
+  const content = msg.payload?.content;
+  if (!content) return '';
+
+  if (Array.isArray(content)) {
+    return content
+      .filter(item => item.type === 'output_text' || item.type === 'text')
+      .map(item => item.text)
+      .join('\n');
+  }
+
+  return String(content);
 }
 
 async function loadBackups() {
@@ -194,18 +364,26 @@ function switchTab(tab) {
 
   // Update tab content
   document.getElementById('sessionsTab').classList.toggle('active', tab === 'sessions');
+  document.getElementById('codexTab').classList.toggle('active', tab === 'codex');
   document.getElementById('backupsTab').classList.toggle('active', tab === 'backups');
 
   // Clear search
   const searchInput = document.getElementById('searchInput');
   if (searchInput) {
     searchInput.value = '';
-    searchInput.placeholder = tab === 'sessions' ? 'Search sessions...' : 'Search backups...';
+    const placeholders = {
+      sessions: 'Search Claude sessions...',
+      codex: 'Search Codex sessions...',
+      backups: 'Search backups...'
+    };
+    searchInput.placeholder = placeholders[tab] || 'Search...';
   }
 
   // Restore full lists
   if (tab === 'sessions') {
     renderConversationsList(conversations);
+  } else if (tab === 'codex') {
+    renderCodexList(codexSessions);
   } else {
     renderBackupsList(backups);
   }
@@ -656,7 +834,7 @@ function setupEventListeners() {
     });
   });
 
-  // Search (works for both tabs)
+  // Search (works for all tabs)
   document.getElementById('searchInput').addEventListener('input', (e) => {
     const query = e.target.value.toLowerCase();
 
@@ -666,6 +844,12 @@ function setupEventListeners() {
         conv.project.toLowerCase().includes(query)
       );
       renderConversationsList(filtered);
+    } else if (currentTab === 'codex') {
+      const filtered = codexSessions.filter(session =>
+        session.summary.toLowerCase().includes(query) ||
+        session.project.toLowerCase().includes(query)
+      );
+      renderCodexList(filtered);
     } else {
       const filtered = backups.filter(backup =>
         backup.project.toLowerCase().includes(query) ||
@@ -679,6 +863,8 @@ function setupEventListeners() {
   document.getElementById('refreshBtn').addEventListener('click', async () => {
     if (currentTab === 'sessions') {
       await loadConversations();
+    } else if (currentTab === 'codex') {
+      await loadCodexSessions();
     } else {
       await loadBackups();
     }

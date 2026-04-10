@@ -183,6 +183,18 @@ body {
   font-weight: 500;
 }
 
+.conversation-item .project-name.codex {
+  color: #10a37f;
+}
+
+.conversation-item.codex-item {
+  border-left: 3px solid #10a37f;
+}
+
+.conversation-item .message-badge.codex {
+  background-color: #10a37f;
+}
+
 .conversation-item .summary {
   font-size: 0.85rem;
   color: var(--text-primary);
@@ -591,6 +603,14 @@ body {
 
 .message.assistant .message-role {
   color: var(--claude-tan);
+}
+
+.message.assistant.codex {
+  border-left-color: #10a37f;
+}
+
+.message.assistant.codex .message-role {
+  color: #10a37f;
 }
 
 .message.assistant.error .message-role {

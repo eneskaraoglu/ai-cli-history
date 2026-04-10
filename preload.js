@@ -7,5 +7,8 @@ contextBridge.exposeInMainWorld('api', {
   backupConversation: (filePath) => ipcRenderer.invoke('backup-conversation', filePath),
   openBackupFolder: () => ipcRenderer.invoke('open-backup-folder'),
   getBackups: () => ipcRenderer.invoke('get-backups'),
-  deleteBackup: (filePath) => ipcRenderer.invoke('delete-backup', filePath)
+  deleteBackup: (filePath) => ipcRenderer.invoke('delete-backup', filePath),
+  // Codex
+  getCodexSessions: () => ipcRenderer.invoke('get-codex-sessions'),
+  getCodexSessionDetails: (filePath) => ipcRenderer.invoke('get-codex-session-details', filePath)
 });
