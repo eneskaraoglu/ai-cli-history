@@ -104,12 +104,46 @@ function getProjectName(filePath) {
   // Extract project name from path like C--JAVAKAYNAK-erp-git
   const parts = filePath.split(path.sep);
   for (let i = parts.length - 1; i >= 0; i--) {
-    if (parts[i].startsWith('C--') || parts[i].startsWith('c--')) {
-      // Convert C--WORKSPACE-github to C:\WORKSPACE\github
-      return parts[i].replace(/^[Cc]--/, '').replace(/-/g, '\\');
+    if (/^[a-zA-Z]--/.test(parts[i])) {
+      // Convert D--WORKSPACE-github to D:\WORKSPACE\github
+      return parts[i].replace(/^([a-zA-Z])--/, '$1:\\').replace(/-/g, '\\');
     }
   }
   return 'Unknown Project';
+}
+
+function getClaudeProjectName(messages, filePath) {
+  const messageWithCwd = messages.find(msg => msg.cwd);
+  if (messageWithCwd?.cwd) {
+    return messageWithCwd.cwd;
+  }
+
+  return getProjectName(filePath);
+}
+
+function extractClaudeUserMessageText(message) {
+  const content = message.message?.content;
+
+  if (typeof content === 'string') {
+    return content.trim();
+  }
+
+  if (Array.isArray(content)) {
+    return content.map(item => {
+      if (typeof item === 'string') return item;
+      if (item.type === 'text' && item.text) return item.text;
+      return '';
+    }).filter(Boolean).join('\n').trim();
+  }
+
+  if (content && typeof content === 'object') {
+    if (typeof content.text === 'string') {
+      return content.text.trim();
+    }
+    return JSON.stringify(content, null, 2);
+  }
+
+  return '';
 }
 
 ipcMain.handle('get-conversations', async () => {
@@ -145,8 +179,7 @@ ipcMain.handle('get-conversations', async () => {
 });
 
 ipcMain.handle('get-conversation-details', async (event, filePath) => {
-  const messages = parseJsonlFile(filePath);
-  return messages;
+  return readBackupMessages(filePath).messages;
 });
 
 ipcMain.handle('get-history-path', async () => {
@@ -191,6 +224,174 @@ function parseCodexJsonlFile(filePath) {
   } catch (e) {
     return [];
   }
+}
+
+function extractCodexMessageText(message) {
+  const content = message.payload?.content;
+  if (!content) return '';
+
+  if (Array.isArray(content)) {
+    return content
+      .filter(item => {
+        if (message.payload?.role === 'user') {
+          return item.type === 'input_text';
+        }
+        return item.type === 'output_text' || item.type === 'text';
+      })
+      .map(item => item.text || '')
+      .join('\n');
+  }
+
+  return String(content);
+}
+
+function normalizeCodexMessagesForBackup(messages) {
+  return messages
+    .filter(m =>
+      m.type === 'response_item' &&
+      (m.payload?.role === 'user' || m.payload?.role === 'assistant')
+    )
+    .map(m => ({
+      type: m.payload.role,
+      timestamp: m.timestamp,
+      message: {
+        content: extractCodexMessageText(m)
+      }
+    }));
+}
+
+function readBackupMessages(filePath) {
+  if (filePath.endsWith('.md')) {
+    return {
+      type: 'markdown',
+      messages: parseMarkdownExportFile(filePath)
+    };
+  }
+
+  const claudeMessages = parseJsonlFile(filePath);
+  if (claudeMessages.length > 0) {
+    return {
+      type: 'claude',
+      messages: claudeMessages
+    };
+  }
+
+  const codexMessages = parseCodexJsonlFile(filePath);
+  const normalizedCodexMessages = normalizeCodexMessagesForBackup(codexMessages);
+  if (normalizedCodexMessages.length > 0) {
+    return {
+      type: 'codex',
+      messages: normalizedCodexMessages,
+      meta: getCodexSessionMeta(codexMessages)
+    };
+  }
+
+  return {
+    type: 'unknown',
+    messages: []
+  };
+}
+
+function getBackupProjectName(filePath) {
+  const claudeMessages = parseJsonlFile(filePath);
+  if (claudeMessages.length > 0) {
+    return getClaudeProjectName(claudeMessages, filePath);
+  }
+
+  const codexMessages = parseCodexJsonlFile(filePath);
+  if (codexMessages.length > 0) {
+    const meta = getCodexSessionMeta(codexMessages);
+    if (meta.cwd) {
+      return meta.cwd;
+    }
+  }
+
+  return 'Unknown Project';
+}
+
+function createUserPromptsMarkdown(messages, projectName) {
+  const userMessages = messages
+    .filter(m => m.type === 'user')
+    .map(message => ({
+      timestamp: message.timestamp,
+      content: extractClaudeUserMessageText(message)
+    }))
+    .filter(message => message.content);
+  const sections = userMessages
+    .map((message, index) => {
+      const timestampLine = message.timestamp
+        ? `_Timestamp: ${new Date(message.timestamp).toLocaleString()}_`
+        : '';
+
+      return [
+        `## Prompt ${index + 1}`,
+        timestampLine,
+        '',
+        message.content
+      ].filter(Boolean).join('\n');
+    })
+    .filter(Boolean);
+
+  return [
+    `# User Prompts`,
+    '',
+    `Project: ${projectName}`,
+    `Exported: ${new Date().toLocaleString()}`,
+    '',
+    ...sections
+  ].join('\n');
+}
+
+function parseMarkdownExportFile(filePath) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const sections = content.split(/^## Prompt \d+\r?\n/gm).slice(1);
+
+    return sections.map(section => {
+      const lines = section.split(/\r?\n/);
+      let timestamp = null;
+
+      if (lines[0]?.startsWith('_Timestamp: ') && lines[0].endsWith('_')) {
+        const timestampText = lines.shift().slice(12, -1);
+        const parsedDate = new Date(timestampText);
+        if (!Number.isNaN(parsedDate.getTime())) {
+          timestamp = parsedDate.toISOString();
+        }
+      }
+
+      while (lines[0] === '') {
+        lines.shift();
+      }
+
+      return {
+        type: 'user',
+        timestamp,
+        message: {
+          content: lines.join('\n').trim()
+        }
+      };
+    }).filter(message => message.message.content);
+  } catch (error) {
+    return [];
+  }
+}
+
+function parseBackupFilename(fileName) {
+  const isMarkdown = fileName.endsWith('_prompts.md');
+  const normalizedName = isMarkdown
+    ? fileName.replace('_prompts.md', '')
+    : fileName.replace('.jsonl', '');
+  const parts = normalizedName.split('_');
+  const timestampPart = parts.pop() || '';
+  const sessionId = parts.pop() || '';
+  const projectName = parts.join('_');
+
+  return {
+    isMarkdown,
+    timestampPart,
+    sessionId,
+    projectName
+  };
 }
 
 function getCodexSessionSummary(messages) {
@@ -287,7 +488,7 @@ ipcMain.handle('backup-conversation', async (event, filePath) => {
     const originalContent = fs.readFileSync(filePath, 'utf-8');
 
     // Get project name and session ID for backup filename
-    const projectName = getProjectName(filePath);
+    const projectName = getBackupProjectName(filePath);
     const sessionId = path.basename(filePath, '.jsonl');
 
     // Create timestamp for backup
@@ -311,6 +512,43 @@ ipcMain.handle('backup-conversation', async (event, filePath) => {
     };
   } catch (error) {
     console.error('Backup failed:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('export-markdown', async (event, filePath) => {
+  try {
+    const { messages } = readBackupMessages(filePath);
+    const userMessages = messages.filter(m => m.type === 'user');
+
+    if (userMessages.length === 0) {
+      return {
+        success: false,
+        error: 'No user prompts found'
+      };
+    }
+
+    const projectName = getBackupProjectName(filePath);
+    const sessionId = path.basename(filePath, '.jsonl');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const safeProjectName = projectName.replace(/[\\/:*?"<>|]/g, '_');
+    const exportFileName = `${safeProjectName}_${sessionId}_${timestamp}_prompts.md`;
+    const exportDir = getBackupPath();
+    const exportFilePath = path.join(exportDir, exportFileName);
+    const markdown = createUserPromptsMarkdown(messages, projectName);
+
+    fs.writeFileSync(exportFilePath, markdown, 'utf-8');
+
+    return {
+      success: true,
+      exportPath: exportFilePath,
+      exportDir
+    };
+  } catch (error) {
+    console.error('Markdown export failed:', error);
     return {
       success: false,
       error: error.message
@@ -351,7 +589,7 @@ ipcMain.handle('get-backups', async () => {
     return [];
   }
 
-  const files = fs.readdirSync(backupDir).filter(f => f.endsWith('.jsonl'));
+  const files = fs.readdirSync(backupDir).filter(f => f.endsWith('.jsonl') || f.endsWith('.md'));
   const backups = [];
 
   for (const file of files) {
@@ -359,13 +597,10 @@ ipcMain.handle('get-backups', async () => {
 
     try {
       const stats = fs.statSync(filePath);
-      const messages = parseJsonlFile(filePath);
+      const backupData = readBackupMessages(filePath);
+      const messages = backupData.messages;
 
-      // Parse filename: ProjectName_SessionId_2026-04-10T12-30-45.jsonl
-      const parts = file.replace('.jsonl', '').split('_');
-      const timestampPart = parts.pop(); // Last part is timestamp
-      const sessionId = parts.pop(); // Second to last is session ID
-      const projectName = parts.join('_'); // Rest is project name
+      const { isMarkdown, timestampPart, sessionId, projectName } = parseBackupFilename(file);
 
       // Parse timestamp
       const backupTime = timestampPart.replace(/-/g, (m, i) => i < 10 ? '-' : i === 10 ? 'T' : ':');
@@ -381,7 +616,9 @@ ipcMain.handle('get-backups', async () => {
         messageCount: messages.length,
         userCount: messages.filter(m => m.type === 'user').length,
         assistantCount: messages.filter(m => m.type === 'assistant').length,
-        isBackup: true
+        isBackup: true,
+        sourceType: backupData.type,
+        isMarkdownExport: isMarkdown
       });
     } catch (e) {
       console.error('Error reading backup file:', file, e);

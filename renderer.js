@@ -225,19 +225,19 @@ function renderBackupsList(items) {
   }
 
   if (items.length === 0) {
-    listElement.innerHTML = '<div class="no-conversations">No backups yet.<br>Use the Backup button to save a session.</div>';
+    listElement.innerHTML = '<div class="no-conversations">No backups yet.<br>Use Backup or Export MD to create one.</div>';
     return;
   }
 
   listElement.innerHTML = items.map(backup => `
-    <div class="backup-item ${backup.id === currentConversationId ? 'active' : ''}"
+    <div class="backup-item ${backup.isMarkdownExport ? 'markdown-export' : ''} ${backup.id === currentConversationId ? 'active' : ''}"
          data-id="${escapeHtml(backup.id)}">
       <div class="backup-item-content">
         <div class="backup-project">${escapeHtml(backup.project)}</div>
         <div class="backup-date">${formatBackupDate(backup.timestamp)}</div>
         <div class="backup-meta">
-          <span>${backup.userCount} / ${backup.assistantCount} msgs</span>
-          <span class="backup-badge">Backup</span>
+          <span>${getBackupMetaText(backup)}</span>
+          <span class="backup-badge ${backup.isMarkdownExport ? 'markdown' : ''}">${backup.isMarkdownExport ? 'MD Export' : 'Backup'}</span>
         </div>
       </div>
       <button class="delete-backup-btn" data-id="${escapeHtml(backup.id)}" title="Delete backup">
@@ -301,7 +301,9 @@ async function selectBackup(id) {
 
     const backup = backups.find(b => b.id === id);
     if (backup) {
-      document.getElementById('conversationTitle').textContent = `[Backup] ${backup.project}`;
+      document.getElementById('conversationTitle').textContent = backup.isMarkdownExport
+        ? `[MD Export] ${backup.project}`
+        : `[Backup] ${backup.project}`;
       updateMessageCount();
     }
   } catch (error) {
@@ -466,10 +468,11 @@ function updateMessageCount() {
   const visibleCount = currentMessages.filter(msg => {
     // Apply type filter
     if (currentFilter !== 'all') {
+      const role = getMessageRole(msg);
       if (currentFilter === 'user') {
-        const content = extractUserContent(msg);
-        if (msg.type !== 'user' || !content || !content.trim()) return false;
-      } else if (msg.type !== currentFilter) {
+        const content = getMessageTextContent(msg);
+        if (role !== 'user' || !content || !content.trim()) return false;
+      } else if (role !== currentFilter) {
         return false;
       }
     }
@@ -512,15 +515,16 @@ function applyFiltersAndSearch() {
     if (!msg) return;
 
     let shouldShow = true;
+    const role = getMessageRole(msg);
 
     // Apply type filter
     if (currentFilter !== 'all') {
       if (currentFilter === 'user') {
         // For user filter, only show non-empty messages
-        const content = extractUserContent(msg);
-        shouldShow = msg.type === 'user' && content && content.trim().length > 0;
+        const content = getMessageTextContent(msg);
+        shouldShow = role === 'user' && content && content.trim().length > 0;
       } else {
-        shouldShow = msg.type === currentFilter;
+        shouldShow = role === currentFilter;
       }
     }
 
@@ -536,9 +540,17 @@ function applyFiltersAndSearch() {
 }
 
 function getMessageSearchText(msg) {
-  if (msg.type === 'user') {
+  const role = getMessageRole(msg);
+
+  if (role === 'user') {
+    if (msg.type === 'response_item') {
+      return extractCodexUserContent(msg);
+    }
     return extractUserContent(msg);
-  } else if (msg.type === 'assistant') {
+  } else if (role === 'assistant') {
+    if (msg.type === 'response_item') {
+      return extractCodexAssistantContent(msg);
+    }
     const blocks = extractAssistantContent(msg);
     return blocks.map(block => {
       if (block.type === 'text') return block.content;
@@ -547,6 +559,42 @@ function getMessageSearchText(msg) {
       return '';
     }).join(' ');
   }
+  return '';
+}
+
+function getBackupMetaText(backup) {
+  if (backup.isMarkdownExport) {
+    return `${backup.userCount} prompts`;
+  }
+  return `${backup.userCount} / ${backup.assistantCount} msgs`;
+}
+
+function getMessageRole(msg) {
+  if (msg.type === 'response_item') {
+    return msg.payload?.role || '';
+  }
+  return msg.type || '';
+}
+
+function getMessageTextContent(msg) {
+  const role = getMessageRole(msg);
+
+  if (msg.type === 'response_item') {
+    if (role === 'user') return extractCodexUserContent(msg);
+    if (role === 'assistant') return extractCodexAssistantContent(msg);
+  }
+
+  if (role === 'user') return extractUserContent(msg);
+  if (role === 'assistant') {
+    return extractAssistantContent(msg)
+      .map(block => {
+        if (block.type === 'text' || block.type === 'thinking') return block.content;
+        if (block.type === 'tool_use') return `${block.name} ${JSON.stringify(block.input)}`;
+        return '';
+      })
+      .join(' ');
+  }
+
   return '';
 }
 
@@ -893,6 +941,13 @@ function setupEventListeners() {
     });
   }
 
+  const exportMdBtn = document.getElementById('exportMdBtn');
+  if (exportMdBtn) {
+    exportMdBtn.addEventListener('click', async () => {
+      await exportCurrentConversationMarkdown();
+    });
+  }
+
   // Open backup folder button
   const openBackupFolderBtn = document.getElementById('openBackupFolderBtn');
   if (openBackupFolderBtn) {
@@ -951,6 +1006,52 @@ async function backupCurrentConversation() {
     alert(`Backup failed: ${error.message}`);
     backupBtn.innerHTML = originalText;
     backupBtn.disabled = false;
+  }
+}
+
+async function exportCurrentConversationMarkdown() {
+  if (!currentConversationId) {
+    alert('No conversation selected');
+    return;
+  }
+
+  const exportBtn = document.getElementById('exportMdBtn');
+  const originalText = exportBtn.innerHTML;
+
+  try {
+    exportBtn.disabled = true;
+    exportBtn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M12 6v6l4 2"></path>
+      </svg>
+      Exporting...
+    `;
+
+    const result = await window.api.exportMarkdown(currentConversationId);
+
+    if (result.success) {
+      exportBtn.classList.add('success');
+      exportBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        Exported
+      `;
+
+      setTimeout(() => {
+        exportBtn.classList.remove('success');
+        exportBtn.innerHTML = originalText;
+        exportBtn.disabled = false;
+      }, 2000);
+    } else {
+      throw new Error(result.error || 'Markdown export failed');
+    }
+  } catch (error) {
+    console.error('Markdown export error:', error);
+    alert(`Markdown export failed: ${error.message}`);
+    exportBtn.innerHTML = originalText;
+    exportBtn.disabled = false;
   }
 }
 

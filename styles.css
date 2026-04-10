@@ -280,6 +280,15 @@ body {
   border-color: var(--success);
 }
 
+.backup-item.markdown-export {
+  border-left-color: var(--accent);
+}
+
+.backup-item.markdown-export:hover,
+.backup-item.markdown-export.active {
+  border-color: var(--accent);
+}
+
 .backup-item-content {
   flex: 1;
   cursor: pointer;
@@ -341,6 +350,11 @@ body {
   border-radius: 8px;
   font-size: 0.65rem;
   font-weight: 500;
+}
+
+.backup-badge.markdown {
+  background-color: var(--accent);
+  color: var(--claude-cream);
 }
 
 .sidebar-footer {
@@ -463,6 +477,12 @@ body {
   border-color: var(--accent);
 }
 
+.conversation-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .backup-btn {
   display: flex;
   align-items: center;
@@ -476,7 +496,6 @@ body {
   font-size: 0.8rem;
   font-weight: 500;
   transition: all 0.2s ease;
-  margin-left: 8px;
 }
 
 .backup-btn:hover {
@@ -502,6 +521,49 @@ body {
 }
 
 .backup-btn .spinning {
+  animation: spin 1s linear infinite;
+}
+
+.export-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.export-btn:hover {
+  background-color: var(--bg-primary);
+  transform: translateY(-1px);
+}
+
+.export-btn:active {
+  transform: translateY(0);
+}
+
+.export-btn svg {
+  flex-shrink: 0;
+}
+
+.export-btn.success {
+  background-color: var(--accent);
+  color: var(--claude-cream);
+  border-color: var(--accent);
+}
+
+.export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.export-btn .spinning {
   animation: spin 1s linear infinite;
 }
 
