@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>Claude Code CLI History</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>Claude Code History</h1>
+        <p class="history-path" id="historyPath"></p>
+      </div>
+      <div class="tabs-container">
+        <button class="tab-btn active" data-tab="sessions">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          Sessions
+        </button>
+        <button class="tab-btn" data-tab="backups">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Backups
+          <span class="tab-badge" id="backupCount">0</span>
+        </button>
+      </div>
+      <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Search..." />
+      </div>
+      <div class="tab-content active" id="sessionsTab">
+        <div class="conversations-list" id="conversationsList">
+          <div class="loading">Loading conversations...</div>
+        </div>
+      </div>
+      <div class="tab-content" id="backupsTab">
+        <div class="backups-header">
+          <button class="open-folder-btn" id="openBackupFolderBtn" title="Open backup folder">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            Open Folder
+          </button>
+        </div>
+        <div class="backups-list" id="backupsList"></div>
+      </div>
+      <div class="sidebar-footer">
+        <button id="refreshBtn" class="refresh-btn">Refresh</button>
+      </div>
+    </aside>
+    <main class="main-content">
+      <div class="welcome-message" id="welcomeMessage">
+        <div class="welcome-icon">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </div>
+        <h2>Welcome to Claude Code History</h2>
+        <p>Select a conversation from the sidebar to view its details</p>
+      </div>
+      <div class="conversation-view" id="conversationView" style="display: none;">
+        <div class="conversation-header">
+          <div class="header-left">
+            <h2 id="conversationTitle">Conversation</h2>
+            <span class="message-count" id="messageCount"></span>
+          </div>
+          <div class="filter-buttons">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="user">User</button>
+            <button class="filter-btn" data-filter="assistant">Assistant</button>
+          </div>
+          <button class="backup-btn" id="backupBtn" title="Backup this conversation">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Backup
+          </button>
+        </div>
+        <div class="message-search">
+          <input type="text" id="messageSearchInput" placeholder="Search in messages..." />
+        </div>
+        <div class="messages-container" id="messagesContainer"></div>
+      </div>
+    </main>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>
