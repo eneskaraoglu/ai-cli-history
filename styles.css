@@ -246,11 +246,13 @@ body {
 }
 
 .backup-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 12px;
   margin-bottom: 8px;
   background-color: var(--bg-tertiary);
   border-radius: 8px;
-  cursor: pointer;
   transition: all 0.2s ease;
   border: 1px solid transparent;
   border-left: 3px solid var(--success);
@@ -264,6 +266,39 @@ body {
 .backup-item.active {
   background-color: var(--bg-primary);
   border-color: var(--success);
+}
+
+.backup-item-content {
+  flex: 1;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.delete-backup-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.backup-item:hover .delete-backup-btn {
+  opacity: 1;
+}
+
+.delete-backup-btn:hover {
+  background-color: rgba(229, 115, 115, 0.2);
+  border-color: #E57373;
+  color: #E57373;
 }
 
 .backup-item .backup-project {

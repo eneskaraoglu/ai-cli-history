@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld('api', {
   getHistoryPath: () => ipcRenderer.invoke('get-history-path'),
   backupConversation: (filePath) => ipcRenderer.invoke('backup-conversation', filePath),
   openBackupFolder: () => ipcRenderer.invoke('open-backup-folder'),
-  getBackups: () => ipcRenderer.invoke('get-backups')
+  getBackups: () => ipcRenderer.invoke('get-backups'),
+  deleteBackup: (filePath) => ipcRenderer.invoke('delete-backup', filePath)
 });

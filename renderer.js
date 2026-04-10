@@ -62,18 +62,34 @@ function renderBackupsList(items) {
   listElement.innerHTML = items.map(backup => `
     <div class="backup-item ${backup.id === currentConversationId ? 'active' : ''}"
          data-id="${escapeHtml(backup.id)}">
-      <div class="backup-project">${escapeHtml(backup.project)}</div>
-      <div class="backup-date">${formatBackupDate(backup.timestamp)}</div>
-      <div class="backup-meta">
-        <span>${backup.userCount} / ${backup.assistantCount} msgs</span>
-        <span class="backup-badge">Backup</span>
+      <div class="backup-item-content">
+        <div class="backup-project">${escapeHtml(backup.project)}</div>
+        <div class="backup-date">${formatBackupDate(backup.timestamp)}</div>
+        <div class="backup-meta">
+          <span>${backup.userCount} / ${backup.assistantCount} msgs</span>
+          <span class="backup-badge">Backup</span>
+        </div>
       </div>
+      <button class="delete-backup-btn" data-id="${escapeHtml(backup.id)}" title="Delete backup">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+      </button>
     </div>
   `).join('');
 
-  listElement.querySelectorAll('.backup-item').forEach(item => {
+  listElement.querySelectorAll('.backup-item-content').forEach(item => {
     item.addEventListener('click', () => {
-      selectBackup(item.dataset.id);
+      const backupId = item.parentElement.dataset.id;
+      selectBackup(backupId);
+    });
+  });
+
+  listElement.querySelectorAll('.delete-backup-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await deleteBackup(btn.dataset.id);
     });
   });
 }
@@ -135,6 +151,36 @@ function formatBackupDate(isoString) {
     });
   } catch {
     return 'Unknown date';
+  }
+}
+
+async function deleteBackup(backupId) {
+  const backup = backups.find(b => b.id === backupId);
+  if (!backup) return;
+
+  const confirmDelete = confirm(`Delete this backup?\n\n${backup.project}\n${formatBackupDate(backup.timestamp)}\n\nThis cannot be undone.`);
+
+  if (!confirmDelete) return;
+
+  try {
+    const result = await window.api.deleteBackup(backupId);
+
+    if (result.success) {
+      // If the deleted backup was selected, clear the view
+      if (currentConversationId === backupId) {
+        currentConversationId = null;
+        document.getElementById('welcomeMessage').style.display = 'flex';
+        document.getElementById('conversationView').style.display = 'none';
+      }
+
+      // Refresh backups list
+      await loadBackups();
+    } else {
+      alert(`Failed to delete backup: ${result.error}`);
+    }
+  } catch (error) {
+    console.error('Delete error:', error);
+    alert(`Failed to delete backup: ${error.message}`);
   }
 }
 

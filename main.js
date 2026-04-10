@@ -203,6 +203,26 @@ ipcMain.handle('open-backup-folder', async () => {
   return backupDir;
 });
 
+ipcMain.handle('delete-backup', async (event, filePath) => {
+  try {
+    // Verify it's in the backup directory for safety
+    const backupDir = getBackupPath();
+    if (!filePath.startsWith(backupDir)) {
+      return { success: false, error: 'Invalid backup path' };
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return { success: false, error: 'File not found' };
+    }
+
+    fs.unlinkSync(filePath);
+    return { success: true };
+  } catch (error) {
+    console.error('Delete failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('get-backups', async () => {
   const backupDir = getBackupPath();
 
