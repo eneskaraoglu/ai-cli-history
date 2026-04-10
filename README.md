@@ -1,6 +1,6 @@
-# Claude Code CLI History Viewer
+# Ai Cli History
 
-A desktop application to browse and backup your Claude Code CLI conversation history.
+A desktop application to browse, back up, and export AI CLI conversation history.
 
 ![Electron](https://img.shields.io/badge/Electron-41.x-47848F?logo=electron&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)
@@ -8,7 +8,8 @@ A desktop application to browse and backup your Claude Code CLI conversation his
 ## Features
 
 ### Session Browser
-- Browse all Claude Code conversations from `~/.claude/projects/`
+- Browse Claude conversations from `~/.claude/projects/`
+- Browse Codex sessions from `~/.codex/sessions/`
 - View conversations organized by project
 - Search sessions by project name or content
 - Filter messages by type (All / User / Assistant)
@@ -17,89 +18,57 @@ A desktop application to browse and backup your Claude Code CLI conversation his
 ### Message Display
 - Clean, readable message formatting
 - Collapsible thinking blocks
-- Smart tool call display:
-  - **Read**: Shows file path
-  - **Bash**: Shows command and description
-  - **Edit/Write**: Shows file and code snippets
-  - **Grep/Glob**: Shows pattern and path
+- Smart tool call display
 - Syntax highlighting for code blocks
 - Error message highlighting
 
-### Backup System
-- Backup any session with one click
-- Backups stored in `~/.claude/history-backups/`
-- Browse backups in dedicated tab
-- Preserves complete session data
-- Perfect for saving sessions before using `/compact`
+### Backup and Export
+- Back up any session with one click
+- Export user prompts to Markdown
+- Browse backups and Markdown exports in the Backups tab
+- Store backups in `~/.claude/history-backups/`
 
 ## Installation
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (v18 or higher)
-- npm (comes with Node.js)
+- [Node.js](https://nodejs.org/) v18 or higher
+- npm
 
 ### Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/claude-cli-history.git
-cd claude-cli-history
-
-# Install dependencies
+git clone https://github.com/yourusername/ai-cli-history.git
+cd ai-cli-history
 npm install
-
-# Run the app
 npm start
 ```
 
 ### Build Executable
 
 ```bash
-# Build for Windows
 npm run build:win
 ```
 
-The installer will be created in the `dist/` folder.
+The Windows installer is created in `dist/`.
 
 ## Usage
 
-### Browsing Sessions
-1. Launch the app
-2. Sessions are listed in the sidebar (newest first)
-3. Click a session to view its messages
-4. Use the search box to filter sessions
-
-### Filtering Messages
-- **All**: Show all messages
-- **User**: Show only your messages (non-empty)
-- **Assistant**: Show only Claude's responses
-
-### Searching Messages
-- Use the search field below the filter buttons
-- Searches in message content, thinking blocks, and tool calls
-
-### Creating Backups
-1. Select a session you want to backup
-2. Click the green **Backup** button
-3. The backup appears in the **Backups** tab
-4. Click the folder icon to open backup directory
-
-### Viewing Backups
-1. Click the **Backups** tab
-2. Browse your saved backups
-3. Click a backup to view its contents
+1. Launch the app.
+2. Select a Claude session, Codex session, backup, or Markdown export from the sidebar.
+3. Use filters and search to narrow visible messages.
+4. Use `Backup` to save the full session or `Export MD` to save only user prompts.
 
 ## File Structure
 
-```
-claude-cli-history/
-├── main.js          # Electron main process
-├── preload.js       # Secure IPC bridge
-├── renderer.js      # Frontend logic
-├── index.html       # App UI structure
-├── styles.css       # Claude-themed styling
-├── package.json     # Dependencies & scripts
-└── README.md        # This file
+```text
+ai-cli-history/
+|-- main.js
+|-- preload.js
+|-- renderer.js
+|-- index.html
+|-- styles.css
+|-- package.json
+`-- README.md
 ```
 
 ## Data Locations
@@ -107,15 +76,8 @@ claude-cli-history/
 | Data | Path |
 |------|------|
 | Claude Sessions | `~/.claude/projects/` |
-| Backups | `~/.claude/history-backups/` |
-
-## Screenshots
-
-The app features a warm, Claude-inspired color theme with:
-- Dark background with warm brown tones
-- Coral accent color for interactive elements
-- Green accents for backups and success states
-- Clear visual distinction between user and assistant messages
+| Codex Sessions | `~/.codex/sessions/` |
+| Backups and MD exports | `~/.claude/history-backups/` |
 
 ## License
 
@@ -123,4 +85,4 @@ MIT
 
 ## Acknowledgments
 
-Built with [Electron](https://www.electronjs.org/) for viewing [Claude Code](https://claude.ai/claude-code) CLI history.
+Built with [Electron](https://www.electronjs.org/) for viewing CLI conversation history.
