@@ -63,7 +63,15 @@
         <div class="backups-list" id="backupsList"></div>
       </div>
       <div class="sidebar-footer">
-        <button id="refreshBtn" class="refresh-btn">Refresh</button>
+        <div class="footer-actions">
+          <button id="settingsBtn" class="icon-btn" title="Backup settings">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+          <button id="refreshBtn" class="refresh-btn">Refresh</button>
+        </div>
       </div>
     </aside>
     <main class="main-content">
@@ -112,6 +120,37 @@
         <div class="messages-container" id="messagesContainer"></div>
       </div>
     </main>
+  </div>
+  <!-- Backup Settings Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Backup Settings</h3>
+        <button class="modal-close-btn" id="closeSettingsBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-group">
+          <label class="settings-label">Backup Directory</label>
+          <div class="path-row">
+            <span class="path-display" id="backupPathDisplay">Loading...</span>
+            <button class="btn-secondary" id="browseBackupBtn">Browse...</button>
+          </div>
+          <button class="btn-link" id="resetBackupPathBtn" style="display:none">Reset to default</button>
+        </div>
+        <div class="settings-group">
+          <label class="settings-label">Cloud Storage Quick Select</label>
+          <div class="cloud-folders" id="cloudFoldersList">
+            <span class="settings-hint">Detecting cloud folders...</span>
+          </div>
+          <p class="settings-hint">Backups will be saved inside an <strong>AI-CLI-History-Backups</strong> subfolder in the selected location.</p>
+        </div>
+      </div>
+    </div>
   </div>
   <script src="renderer.js"></script>
 </body>

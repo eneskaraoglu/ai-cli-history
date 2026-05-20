@@ -11,5 +11,10 @@ contextBridge.exposeInMainWorld('api', {
   deleteBackup: (filePath) => ipcRenderer.invoke('delete-backup', filePath),
   // Codex
   getCodexSessions: () => ipcRenderer.invoke('get-codex-sessions'),
-  getCodexSessionDetails: (filePath) => ipcRenderer.invoke('get-codex-session-details', filePath)
+  getCodexSessionDetails: (filePath) => ipcRenderer.invoke('get-codex-session-details', filePath),
+  // Backup settings
+  getBackupSettings: () => ipcRenderer.invoke('get-backup-settings'),
+  setBackupPath: (newPath) => ipcRenderer.invoke('set-backup-path', newPath),
+  resetBackupPath: () => ipcRenderer.invoke('reset-backup-path'),
+  browseBackupFolder: () => ipcRenderer.invoke('browse-backup-folder')
 });

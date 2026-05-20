@@ -874,6 +874,67 @@ function truncate(str, maxLength) {
   return str.substring(0, maxLength) + '...';
 }
 
+async function openSettings() {
+  document.getElementById('settingsModal').classList.add('open');
+  await loadBackupSettings();
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('open');
+}
+
+async function loadBackupSettings() {
+  try {
+    const settings = await window.api.getBackupSettings();
+    const pathDisplay = document.getElementById('backupPathDisplay');
+    pathDisplay.textContent = settings.currentPath;
+    pathDisplay.classList.toggle('is-custom', settings.isCustom);
+
+    const resetBtn = document.getElementById('resetBackupPathBtn');
+    resetBtn.style.display = settings.isCustom ? 'block' : 'none';
+
+    renderCloudFolderButtons(settings.cloudFolders, settings.currentPath);
+  } catch (error) {
+    console.error('Failed to load backup settings:', error);
+  }
+}
+
+function renderCloudFolderButtons(cloudFolders, currentPath) {
+  const container = document.getElementById('cloudFoldersList');
+
+  if (!cloudFolders || cloudFolders.length === 0) {
+    container.innerHTML = '<span class="no-cloud-hint">No cloud sync folders detected on this system. Use Browse to set a custom path.</span>';
+    return;
+  }
+
+  container.innerHTML = cloudFolders.map(folder => {
+    const isActive = currentPath.startsWith(folder.path);
+    return `<button class="cloud-folder-btn ${isActive ? 'active' : ''}" data-suggested="${escapeHtml(folder.suggestedPath)}">
+      ${escapeHtml(folder.name)}
+    </button>`;
+  }).join('');
+
+  container.querySelectorAll('.cloud-folder-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await applyBackupPath(btn.dataset.suggested);
+    });
+  });
+}
+
+async function applyBackupPath(newPath) {
+  try {
+    const result = await window.api.setBackupPath(newPath);
+    if (result.success) {
+      await loadBackupSettings();
+      await loadBackups();
+    } else {
+      alert(`Failed to set backup path: ${result.error}`);
+    }
+  } catch (error) {
+    alert(`Failed to set backup path: ${error.message}`);
+  }
+}
+
 function setupEventListeners() {
   // Tab switching
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -955,6 +1016,29 @@ function setupEventListeners() {
       await window.api.openBackupFolder();
     });
   }
+
+  // Settings modal
+  document.getElementById('settingsBtn').addEventListener('click', openSettings);
+  document.getElementById('closeSettingsBtn').addEventListener('click', closeSettings);
+
+  document.getElementById('settingsModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeSettings();
+  });
+
+  document.getElementById('browseBackupBtn').addEventListener('click', async () => {
+    const result = await window.api.browseBackupFolder();
+    if (!result.canceled) {
+      await applyBackupPath(result.path);
+    }
+  });
+
+  document.getElementById('resetBackupPathBtn').addEventListener('click', async () => {
+    const result = await window.api.resetBackupPath();
+    if (result.success) {
+      await loadBackupSettings();
+      await loadBackups();
+    }
+  });
 }
 
 async function backupCurrentConversation() {

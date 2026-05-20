@@ -5,6 +5,91 @@ const os = require('os');
 
 let mainWindow;
 
+function getConfigPath() {
+  return path.join(app.getPath('userData'), 'config.json');
+}
+
+function loadConfig() {
+  try {
+    const configPath = getConfigPath();
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    }
+  } catch (e) { /* ignore */ }
+  return {};
+}
+
+function saveConfig(config) {
+  try {
+    fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Failed to save config:', e);
+  }
+}
+
+function getDefaultBackupPath() {
+  return path.join(os.homedir(), '.claude', 'history-backups');
+}
+
+function detectCloudFolders() {
+  const homeDir = os.homedir();
+  const appData = process.env.APPDATA || path.join(homeDir, 'AppData', 'Roaming');
+  const localAppData = process.env.LOCALAPPDATA || path.join(homeDir, 'AppData', 'Local');
+  const detected = [];
+
+  // Dropbox: read actual path from info.json, fallback to default
+  let dropboxFound = false;
+  for (const infoPath of [
+    path.join(appData, 'Dropbox', 'info.json'),
+    path.join(localAppData, 'Dropbox', 'info.json')
+  ]) {
+    if (!dropboxFound && fs.existsSync(infoPath)) {
+      try {
+        const info = JSON.parse(fs.readFileSync(infoPath, 'utf-8'));
+        const dbPath = info.personal?.path || info.business?.path;
+        if (dbPath && fs.existsSync(dbPath)) {
+          detected.push({ name: 'Dropbox', path: dbPath, suggestedPath: path.join(dbPath, 'AI-CLI-History-Backups') });
+          dropboxFound = true;
+        }
+      } catch (e) { /* ignore */ }
+    }
+  }
+  if (!dropboxFound) {
+    const fallback = path.join(homeDir, 'Dropbox');
+    if (fs.existsSync(fallback)) {
+      detected.push({ name: 'Dropbox', path: fallback, suggestedPath: path.join(fallback, 'AI-CLI-History-Backups') });
+    }
+  }
+
+  // OneDrive: env vars are most reliable on Windows
+  const oneDrivePath = process.env.OneDrive || process.env.OneDriveConsumer || path.join(homeDir, 'OneDrive');
+  if (fs.existsSync(oneDrivePath)) {
+    detected.push({ name: 'OneDrive', path: oneDrivePath, suggestedPath: path.join(oneDrivePath, 'AI-CLI-History-Backups') });
+  }
+
+  // Google Drive: check common folder names
+  for (const gdPath of [
+    path.join(homeDir, 'Google Drive'),
+    path.join(homeDir, 'My Drive'),
+    path.join(homeDir, 'Google Drive (My Drive)'),
+  ]) {
+    if (fs.existsSync(gdPath)) {
+      detected.push({ name: 'Google Drive', path: gdPath, suggestedPath: path.join(gdPath, 'AI-CLI-History-Backups') });
+      break;
+    }
+  }
+
+  // Box
+  for (const boxPath of [path.join(homeDir, 'Box'), path.join(homeDir, 'Box Sync')]) {
+    if (fs.existsSync(boxPath)) {
+      detected.push({ name: 'Box', path: boxPath, suggestedPath: path.join(boxPath, 'AI-CLI-History-Backups') });
+      break;
+    }
+  }
+
+  return detected;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -471,14 +556,20 @@ ipcMain.handle('get-codex-session-details', async (event, filePath) => {
 });
 
 function getBackupPath() {
-  const homeDir = os.homedir();
-  const backupDir = path.join(homeDir, '.claude', 'history-backups');
+  const config = loadConfig();
+  if (config.customBackupPath) {
+    if (!fs.existsSync(config.customBackupPath)) {
+      try { fs.mkdirSync(config.customBackupPath, { recursive: true }); } catch (e) { /* fall through */ }
+    }
+    if (fs.existsSync(config.customBackupPath)) {
+      return config.customBackupPath;
+    }
+  }
 
-  // Create backup directory if it doesn't exist
+  const backupDir = getDefaultBackupPath();
   if (!fs.existsSync(backupDir)) {
     fs.mkdirSync(backupDir, { recursive: true });
   }
-
   return backupDir;
 }
 
@@ -629,6 +720,52 @@ ipcMain.handle('get-backups', async () => {
   backups.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   return backups;
+});
+
+ipcMain.handle('get-backup-settings', async () => {
+  const config = loadConfig();
+  return {
+    currentPath: getBackupPath(),
+    defaultPath: getDefaultBackupPath(),
+    isCustom: !!config.customBackupPath,
+    cloudFolders: detectCloudFolders()
+  };
+});
+
+ipcMain.handle('set-backup-path', async (event, newPath) => {
+  try {
+    if (!fs.existsSync(newPath)) {
+      fs.mkdirSync(newPath, { recursive: true });
+    }
+    const config = loadConfig();
+    config.customBackupPath = newPath;
+    saveConfig(config);
+    return { success: true, path: newPath };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('reset-backup-path', async () => {
+  const config = loadConfig();
+  delete config.customBackupPath;
+  saveConfig(config);
+  const defaultPath = getDefaultBackupPath();
+  if (!fs.existsSync(defaultPath)) {
+    fs.mkdirSync(defaultPath, { recursive: true });
+  }
+  return { success: true, path: defaultPath };
+});
+
+ipcMain.handle('browse-backup-folder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory', 'createDirectory'],
+    title: 'Select Backup Folder'
+  });
+  if (result.canceled || !result.filePaths[0]) {
+    return { canceled: true };
+  }
+  return { canceled: false, path: result.filePaths[0] };
 });
 
 app.whenReady().then(() => {
