@@ -26,7 +26,14 @@ A desktop application to browse, back up, and export AI CLI conversation history
 - Back up any session with one click
 - Export user prompts to Markdown
 - Browse backups and Markdown exports in the Backups tab
-- Store backups in `~/.claude/history-backups/`
+- Default backup location: `~/.claude/history-backups/`
+
+### Cloud Backup
+- Configure a custom backup directory via the ⚙ settings button
+- Auto-detects installed cloud sync folders (Dropbox, OneDrive, Google Drive, Box)
+- Quick-select buttons save backups to an `AI-CLI-History-Backups` subfolder inside the chosen cloud folder
+- Browse to any directory for a fully custom path
+- Reset to the default local path at any time
 
 ## Installation
 
@@ -57,6 +64,7 @@ The Windows installer is created in `dist/`.
 2. Select a Claude session, Codex session, backup, or Markdown export from the sidebar.
 3. Use filters and search to narrow visible messages.
 4. Use `Backup` to save the full session or `Export MD` to save only user prompts.
+5. Click the ⚙ gear icon (bottom of sidebar) to configure the backup directory — point it at your Dropbox, OneDrive, or Google Drive folder to sync backups automatically.
 
 ## File Structure
 
@@ -73,11 +81,14 @@ ai-cli-history/
 
 ## Data Locations
 
-| Data | Path |
+| Data | Default Path |
 |------|------|
 | Claude Sessions | `~/.claude/projects/` |
 | Codex Sessions | `~/.codex/sessions/` |
 | Backups and MD exports | `~/.claude/history-backups/` |
+| App config | `%APPDATA%\ai-cli-history\config.json` |
+
+The backup path is configurable. When a cloud folder is selected, backups go to `<cloud-folder>/AI-CLI-History-Backups/` and are synced by your cloud client automatically.
 
 ## License
 
