@@ -7,6 +7,8 @@ A desktop application to browse, back up, and export AI CLI conversation history
 
 ## Features
 
+![img-1](img-1.png)
+
 ### Session Browser
 - Browse Claude conversations from `~/.claude/projects/`
 - Browse Codex sessions from `~/.codex/sessions/`
